@@ -1,75 +1,77 @@
+"""
+Propósito: Dividir as questões por padrão visual vertical de 3 faixas no penúltimo pixel da direita.
+Padrão:
+  - Faixa 1: 6px RGB(35, 31, 32) (margem 3 a 9 px)
+  - Faixa 2: 4px RGB(211, 210, 210) (margem 1 a 7 px)
+  - Faixa 3: 2px RGB(35, 31, 32) (margem 0 a 5 px)
+Corte: 21 pixels acima do início do padrão (mantendo esses 21px no topo do novo recorte).
+"""
+
 from PIL import Image
 import os
 
-def cor_similar(cor_pixel, cor_alvo, tolerancia=15):
+def cor_combina(pixel, cor_alvo, tolerancia=15):
     """
-    Verifica se a cor do pixel está dentro da tolerância em relação à cor alvo (RGB)
+    Verifica se a cor de um pixel combina com a cor alvo considerando uma tolerância.
     """
-    return all(abs(c1 - c2) <= tolerancia for c1, c2 in zip(cor_pixel[:3], cor_alvo))
+    if len(pixel) == 4:  # RGBA
+        r, g, b, _ = pixel
+    else:  # RGB
+        r, g, b = pixel[:3]
+        
+    return (abs(r - cor_alvo[0]) <= tolerancia and 
+            abs(g - cor_alvo[1]) <= tolerancia and 
+            abs(b - cor_alvo[2]) <= tolerancia)
 
-def validar_faixa(pixels, x, y_inicio, altura_esperada, cor_alvo, margem_altura=1):
+def encontrar_padrao_vertical(imagem, tolerancia=15):
     """
-    Verifica se a partir de y_inicio existe uma faixa da cor_alvo com a altura dentro da margem
-    Retorna a altura real encontrada (se válida) ou 0 se não for válida.
+    Encontra posições onde o padrão visual vertical de 3 faixas ocorre
+    no penúltimo pixel da direita (largura - 2).
     """
-    altura_atual = 0
-    # Percorre até a altura máxima permitida
-    max_altura = altura_esperada + margem_altura
-    min_altura = max(1, altura_esperada - margem_altura)
-    
-    while altura_atual < max_altura:
-        y_atual = y_inicio + altura_atual
-        if y_atual >= pixels_altura:
-            break
-            
-        pixel = pixels[x, y_atual]
-        if cor_similar(pixel, cor_alvo):
-            altura_atual += 1
-        else:
-            break
-
-    if min_altura <= altura_atual <= max_altura:
-        return altura_atual
-    return 0
-
-def encontrar_padrao_vertical(imagem, tolerancia=20):
-    """
-    Encontra o padrão vertical (6px, 4px, 2px) no penúltimo pixel da direita com margem de 1px
-    """
-    global pixels_altura
     largura, altura = imagem.size
-    pixels_altura = altura
     pixels = imagem.load()
+    x = largura - 5  # Penúltimo pixel da direita
     
     # Cores do padrão (RGB 0-255)
-    cor_f1 = (35, 31, 32)    # 6px (5 a 7)
-    cor_f2 = (211, 210, 210) # 4px (3 a 5)
-    cor_f3 = (35, 31, 32)    # 2px (1 a 3)
+    cor1 = (35, 31, 32)
+    cor2 = (211, 210, 210)
+    cor3 = (35, 31, 32)
     
-    x = largura - 2  # Penúltimo pixel da direita
     posicoes_corte = []
-    
     y = 0
-    while y < altura - 12:
-        # Tenta validar a primeira faixa (6px +/- 1px)
-        h1 = validar_faixa(pixels, x, y, altura_esperada=6, cor_alvo=cor_f1, margem_altura=1)
-        if h1 > 0:
-            # Tenta validar a segunda faixa (4px +/- 1px) logo após a primeira
-            h2 = validar_faixa(pixels, x, y + h1, altura_esperada=4, cor_alvo=cor_f2, margem_altura=1)
-            if h2 > 0:
-                # Tenta validar a terceira faixa (2px +/- 1px) logo após a segunda
-                h3 = validar_faixa(pixels, x, y + h1 + h2, altura_esperada=2, cor_alvo=cor_f3, margem_altura=1)
-                if h3 > 0:
-                    # Padrão completo encontrado!
-                    # Corta 21 pixels acima do início do padrão
-                    posicao_corte = max(0, y - 21)
+    
+    # Percorre de cima para baixo
+    while y < altura - 20:  # Garante espaço mínimo para verificar a sequência
+        # 1. Mede o tamanho da primeira faixa (cor1)
+        h1 = 0
+        while (y + h1) < altura and cor_combina(pixels[x, y + h1], cor1, tolerancia):
+            h1 += 1
+            
+        # Verifica faixa 1: 6px nominal (3 a 9px com margem)
+        if 3 <= h1 <= 9:
+            # 2. Mede o tamanho da segunda faixa (cor2)
+            y2 = y + h1
+            h2 = 0
+            while (y2 + h2) < altura and cor_combina(pixels[x, y2 + h2], cor2, tolerancia):
+                h2 += 1
+                
+            # Verifica faixa 2: 4px nominal (1 a 7px com margem)
+            if 1 <= h2 <= 7:
+                # 3. Mede o tamanho da terceira faixa (cor3)
+                y3 = y2 + h2
+                h3 = 0
+                while (y3 + h3) < altura and cor_combina(pixels[x, y3 + h3], cor3, tolerancia):
+                    h3 += 1
+                    
+                # Verifica faixa 3: 2px nominal (0 a 5px com margem, aceita no mínimo 0 se muito fina)
+                if 0 <= h3 <= 5 and (h1 + h2 + h3) > 0:
+                    # Padrão encontrado no Y inicial da primeira faixa!
+                    posicao_corte = max(0, y - 21)  # Corta 21px acima do início do padrão
                     posicoes_corte.append(posicao_corte)
+                    print(f"Padrão encontrado em y={y} (alturas: {h1}px, {h2}px, {h3}px). Cortando em y={posicao_corte}")
                     
-                    altura_total_padrao = h1 + h2 + h3
-                    print(f"Padrão encontrado em y={y} (faixas: {h1}px, {h2}px, {h3}px). Cortando em y={posicao_corte}")
-                    
-                    # Avança além do padrão encontrado para evitar re-detecção
-                    y += altura_total_padrao
+                    # Avança o loop pulando todo o padrão para evitar detecções duplicadas
+                    y += (h1 + h2 + max(h3, 1))
                     continue
         
         y += 1
@@ -78,7 +80,7 @@ def encontrar_padrao_vertical(imagem, tolerancia=20):
 
 def dividir_imagem_por_faixas(caminho_imagem, pasta_saida):
     """
-    Divide a imagem verticalmente cortando com base no padrão encontrado
+    Divide a imagem verticalmente cortando nas posições identificadas pelo padrão
     """
     imagem = Image.open(caminho_imagem)
     largura, altura = imagem.size
@@ -88,10 +90,11 @@ def dividir_imagem_por_faixas(caminho_imagem, pasta_saida):
     posicoes_corte = encontrar_padrao_vertical(imagem)
     
     if not posicoes_corte:
-        print("Nenhum padrão encontrado na imagem!")
+        print("Nenhum padrão visual encontrado na imagem!")
         return
+        
+    print(f"Encontradas {len(posicoes_corte)} ocorrências do padrão para corte")
     
-    print(f"Encontrados {len(posicoes_corte)} pontos de corte")
     os.makedirs(pasta_saida, exist_ok=True)
     
     posicao_anterior = 0
@@ -109,8 +112,8 @@ def dividir_imagem_por_faixas(caminho_imagem, pasta_saida):
         print(f"Salvo: {caminho_completo} ({secao.width}x{secao.height}px)")
         
         posicao_anterior = posicao_corte
-    
-    # Salva a última parte (do último corte até o fim da imagem)
+        
+    # Corta a seção final após o último ponto de corte
     if posicao_anterior < altura:
         area_corte = (0, posicao_anterior, largura, altura)
         secao = imagem.crop(area_corte)

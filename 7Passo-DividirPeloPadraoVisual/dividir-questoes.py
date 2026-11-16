@@ -1,9 +1,9 @@
 """
 Propósito: Dividir as questões por padrão visual vertical de 3 faixas no penúltimo pixel da direita.
 Padrão:
-  - Faixa 1: 6px RGB(35, 31, 32) (margem 3 a 9 px)
-  - Faixa 2: 4px RGB(211, 210, 210) (margem 1 a 7 px)
-  - Faixa 3: 2px RGB(35, 31, 32) (margem 0 a 5 px)
+  - Faixa 1: 7px RGB(35, 31, 32) (margem ±2px -> 5 a 9 px)
+  - Faixa 2: 4px RGB(211, 210, 210) (margem ±2px -> 2 a 6 px)
+  - Faixa 3: 2px RGB(35, 31, 32) (margem ±2px -> 0 a 4 px)
 Corte: 21 pixels acima do início do padrão (mantendo esses 21px no topo do novo recorte).
 """
 
@@ -30,7 +30,7 @@ def encontrar_padrao_vertical(imagem, tolerancia=15):
     """
     largura, altura = imagem.size
     pixels = imagem.load()
-    x = largura - 5  # Penúltimo pixel da direita
+    x = largura - 10  # Penúltimo pixel da direita
     
     # Cores do padrão (RGB 0-255)
     cor1 = (35, 31, 32)
@@ -41,30 +41,30 @@ def encontrar_padrao_vertical(imagem, tolerancia=15):
     y = 0
     
     # Percorre de cima para baixo
-    while y < altura - 20:  # Garante espaço mínimo para verificar a sequência
+    while y < altura - 15:  # Garante espaço mínimo para verificar a sequência
         # 1. Mede o tamanho da primeira faixa (cor1)
         h1 = 0
         while (y + h1) < altura and cor_combina(pixels[x, y + h1], cor1, tolerancia):
             h1 += 1
             
-        # Verifica faixa 1: 6px nominal (3 a 9px com margem)
-        if 3 <= h1 <= 9:
+        # Verifica faixa 1: 7px nominal (5 a 9px com margem de ±2px)
+        if 5 <= h1 <= 9:
             # 2. Mede o tamanho da segunda faixa (cor2)
             y2 = y + h1
             h2 = 0
             while (y2 + h2) < altura and cor_combina(pixels[x, y2 + h2], cor2, tolerancia):
                 h2 += 1
                 
-            # Verifica faixa 2: 4px nominal (1 a 7px com margem)
-            if 1 <= h2 <= 7:
+            # Verifica faixa 2: 4px nominal (2 a 6px com margem de ±2px)
+            if 2 <= h2 <= 6:
                 # 3. Mede o tamanho da terceira faixa (cor3)
                 y3 = y2 + h2
                 h3 = 0
                 while (y3 + h3) < altura and cor_combina(pixels[x, y3 + h3], cor3, tolerancia):
                     h3 += 1
                     
-                # Verifica faixa 3: 2px nominal (0 a 5px com margem, aceita no mínimo 0 se muito fina)
-                if 0 <= h3 <= 5 and (h1 + h2 + h3) > 0:
+                # Verifica faixa 3: 2px nominal (0 a 4px com margem de ±2px)
+                if 0 <= h3 <= 4:
                     # Padrão encontrado no Y inicial da primeira faixa!
                     posicao_corte = max(0, y - 21)  # Corta 21px acima do início do padrão
                     posicoes_corte.append(posicao_corte)
